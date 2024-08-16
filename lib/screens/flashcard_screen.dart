@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flashcard_mvp/services/database_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/flashcard.dart'; // Assuming your Flashcard model is in this path
@@ -19,6 +22,7 @@ class FlashcardScreen extends StatefulWidget {
 }
 
 class _FlashcardScreenState extends State<FlashcardScreen> {
+  final DatabaseHelper _databaseHelper = DatabaseHelper(); // Initialize DatabaseHelper
   bool showAnswer = false;
   double cardScale = 1.0;
 
@@ -29,6 +33,10 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
       showAnswer = !showAnswer;
       cardScale = showAnswer ? 1.05 : 1.0; // Scale animation effect
     });
+
+    // Save the state of the flashcard (e.g., if the user knows it)
+    // This is where you can call _databaseHelper to save changes
+    _databaseHelper.insertFlashcard(widget.flashcard); // Save the flashcard
   }
 
   void _playSpeech(BuildContext context, Flashcard flashcard) async {
@@ -55,6 +63,31 @@ class _FlashcardScreenState extends State<FlashcardScreen> {
       }
     }
   }
+
+  void handleRating(String rating) {
+    int intervalDays = widget.flashcard.intervalDays;
+
+
+    if (rating == 'Easy') {
+      intervalDays = intervalDays * 4; // Increase the interval significantly
+    } else if (rating == 'Medium') {
+      intervalDays = intervalDays * 2; // Increase the interval moderately
+    } else if (rating == 'Hard') {
+      intervalDays = max(intervalDays ~/ 2, 1); // Decrease the interval or slightly increase it
+    }
+
+    // Update the flashcard with the new interval
+    setState(() {
+      widget.flashcard.intervalDays = intervalDays;
+      widget.flashcard.dueDate = DateTime.now().add(Duration(days: intervalDays));
+    });
+
+    // Save this updated flashcard back to the database
+    _databaseHelper.insertFlashcard(widget.flashcard);
+
+    Navigator.pop(context); // Go back to the deck screen or next card
+  }
+
 
 
   @override
