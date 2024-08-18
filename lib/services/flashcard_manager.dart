@@ -1,84 +1,30 @@
-
-
-// import 'package:flashcard_mvp/services/llm_service.dart';
-
-// import '../models/flashcard.dart';
-
-// class FlashcardManager {
-//   final LLMService _llmService = LLMService();
-
-//   // Method to generate a deck of flashcards
-//   Future<Deck?> generateDeck() async {
-//     // Step 1: Get the list of 20 words from LLMService
-//     final words = await _llmService.suggestWords();
-
-//     if (words.isEmpty) {
-//       print('No words were suggested');
-//       return null;
-//     }
-
-//     // Step 2: Generate flashcards for the suggested words
-//     final flashcards = await _llmService.generateFlashcards(words);
-
-//     if (flashcards.isEmpty) {
-//       print('Failed to generate flashcards');
-//       return null;
-//     }
-
-//     // Step 3: Create a Deck from the generated flashcards
-//     final deck = Deck(
-//       name: 'Generated Deck',
-//       flashcards: flashcards,
-//     );
-
-//     return deck;
-//   }
-// }
-
-
-// import 'package:flashcard_mvp/models/flashcard.dart';
-// import 'package:flashcard_mvp/services/llm_service.dart';
-//
-// class FlashcardManager {
-//   final LLMService _llmService = LLMService();
-//
-//   Future<Deck?> generateDeck(String input) async {
-//     // Pass the user input to suggestWords
-//     final words = await _llmService.suggestWords(input);
-//
-//     if (words.isEmpty) {
-//       print('No words were suggested');
-//       return null;
-//     }
-//
-//     final flashcards = await _llmService.generateFlashcards(words);
-//
-//     if (flashcards.isEmpty) {
-//       print('Failed to generate flashcards');
-//       return null;
-//     }
-//
-//     return Deck(
-//       name: 'Generated Deck',
-//       flashcards: flashcards,
-//     );
-//   }
-//
-// }
-
+import 'package:flashcard_mvp/models/flashcard.dart';
+import 'package:flashcard_mvp/services/llm_service.dart';
+import 'package:flashcard_mvp/services/database_helper.dart'; // Assuming this is where your DB helper is
+import 'package:flashcard_mvp/services/image_service.dart'; // Import the ImageService for generating images
 
 import 'package:flashcard_mvp/models/flashcard.dart';
 import 'package:flashcard_mvp/services/llm_service.dart';
 import 'package:flashcard_mvp/services/database_helper.dart';
+import 'package:flashcard_mvp/services/image_service.dart'; // Import the ImageService
 
 class FlashcardManager {
   final LLMService _llmService = LLMService();
   final DatabaseHelper _databaseHelper = DatabaseHelper();
+  final ImageService _imageService = ImageService(); // Initialize the ImageService
 
   // Method to generate a deck of flashcards based on user input
   Future<Deck?> generateDeck(String input) async {
     try {
-      // Call the suggestWords method to get a list of words and their corresponding flashcards
+      // Check if a deck with this name already exists
+      Deck? existingDeck = await _databaseHelper.getDeckByName(input);
+
+      if (existingDeck != null) {
+        print('Deck with name "$input" already exists. Returning existing deck.');
+        return existingDeck;
+      }
+
+      // Parallelize flashcard generation and image generation
       final List<Flashcard> flashcards = await _llmService.suggestWords(input);
 
       if (flashcards.isEmpty) {
@@ -86,31 +32,28 @@ class FlashcardManager {
         return null;
       }
 
-      // Save the new deck to the database to get the generated ID
-      final newDeck = Deck(
-        id: 0, // Temporary ID, will be replaced after insertion into DB
-        name: 'Generated Deck',
+      // Parallel image generation
+      await Future.wait(flashcards.map((flashcard) async {
+        flashcard.imageUrl = await _imageService.generateImage(
+          flashcard.word, flashcard.definition
+        );
+      }));
+
+      // Create a deck with the generated flashcards
+      Deck newDeck = Deck(
+        name: input,
         flashcards: flashcards,
       );
 
-      final deckId = await _databaseHelper.insertDeck(newDeck);
-      if (deckId == null) {
-        print('Failed to save the deck to the database');
-        return null;
-      }
+      // Save the new deck and its flashcards to the database
+      int deckId = await _databaseHelper.insertDeck(newDeck);
+      await _databaseHelper.insertFlashcards(flashcards, deckId); // Use batch insert
 
-      // Return the deck with the correct ID
-      return Deck(
-        id: deckId,
-        name: 'Generated Deck',
-        flashcards: flashcards,
-      );
+      return newDeck;
+
     } catch (e) {
       print('Failed to generate deck: $e');
       return null;
     }
   }
 }
-
-
-

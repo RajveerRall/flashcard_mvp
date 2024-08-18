@@ -7,9 +7,10 @@ class Flashcard {
   DateTime dueDate;
   double easeFactor;
   int repetitions;
+  String? imageUrl; // New field to store the image URL
 
   Flashcard({
-    this.id,  // Ensure id is included
+    this.id,
     required this.word,
     required this.definition,
     required this.exampleSentence,
@@ -17,6 +18,7 @@ class Flashcard {
     DateTime? dueDate,
     this.easeFactor = 2.5,
     this.repetitions = 0,
+    this.imageUrl, // Initialize the new field
   }) : dueDate = dueDate ?? DateTime.now().add(Duration(days: 1));
 
   Map<String, dynamic> toMap() {
@@ -29,6 +31,7 @@ class Flashcard {
       'dueDate': dueDate.toIso8601String(),
       'easeFactor': easeFactor,
       'repetitions': repetitions,
+      'imageUrl': imageUrl, // Include imageUrl in the map
     };
   }
 
@@ -40,26 +43,22 @@ class Flashcard {
         intervalDays = map['intervalDays'] ?? 1,
         dueDate = DateTime.parse(map['dueDate'] ?? DateTime.now().toIso8601String()),
         easeFactor = map['easeFactor'] ?? 2.5,
-        repetitions = map['repetitions'] ?? 0;
+        repetitions = map['repetitions'] ?? 0,
+        imageUrl = map['imageUrl']; // Extract imageUrl from the map
 }
 
 
-
-
-
 class Deck {
-  final int id;
+  int? id;
   final String name;
   final List<Flashcard> flashcards;
 
-  Deck({required this.id, required this.name, required this.flashcards});
+  Deck({ this.id, required this.name, required this.flashcards});
 
-  // Modify the fromMap constructor to accept both deckMap and flashcards
   Deck.fromMap(Map<String, dynamic> deckMap, this.flashcards)
       : id = deckMap['id'],
         name = deckMap['name'];
 
-  // toMap method for saving to the database
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -67,5 +66,4 @@ class Deck {
     };
   }
 }
-
 

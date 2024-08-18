@@ -1,123 +1,101 @@
-// import 'package:flashcard_mvp/screens/flashcard_screen.dart';
-// import 'package:flutter/material.dart';
-// import 'package:audioplayers/audioplayers.dart';
-// import 'package:path_provider/path_provider.dart';
-// import 'package:path/path.dart' as path;
-// import 'dart:io';
-//
-// import '../models/flashcard.dart';
-// import '../services/tts_service.dart';
-//
-// class DeckScreen extends StatelessWidget {
-//   final Deck deck;
-//   final TTSService _ttsService = TTSService();
-//   final AudioPlayer _audioPlayer = AudioPlayer();
-//
-//   DeckScreen({required this.deck});
-//
-//   Future<void> _playSpeech(BuildContext context, Flashcard flashcard) async {
-//     final textToSpeak = "${flashcard.word}. Definition: ${flashcard.definition}. Example: ${flashcard.exampleSentence}";
-//
-//     final directory = await getApplicationDocumentsDirectory();
-//     final sanitizedWord = flashcard.word.replaceAll(RegExp(r'[^\w\s]'), '').replaceAll(' ', '_'); // Remove invalid filename characters
-//     final filePath = path.join(directory.path, '$sanitizedWord.mp3');
-//     final file = File(filePath);
-//
-//     if (file.existsSync()) {
-//       // If the file exists, play the saved audio
-//       await _audioPlayer.play(DeviceFileSource(filePath)); // Play using audioplayers
-//     } else {
-//       // If the file doesn't exist, generate the speech and save it
-//       final generatedFilePath = await _ttsService.generateSpeech(textToSpeak);
-//       if (generatedFilePath != null) {
-//         // Add a small delay to ensure the file is completely written and available
-//         await Future.delayed(const Duration(milliseconds: 500));
-//
-//         // Now, attempt to play the file
-//         await _audioPlayer.play(DeviceFileSource(generatedFilePath)); // Play using audioplayers
-//       } else {
-//         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to generate speech')));
-//       }
-//     }
-//   }
-//
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: Text(deck.name)),
-//       body: ListView.builder(
-//         itemCount: deck.flashcards.length,
-//         itemBuilder: (context, index) {
-//           final flashcard = deck.flashcards[index];
-//           return Card(
-//             child: ListTile(
-//               title: Text(flashcard.word),
-//               subtitle: Column(
-//                 crossAxisAlignment: CrossAxisAlignment.start,
-//                 children: [
-//                   Text('Definition: ${flashcard.definition}'),
-//                   Text('Example: ${flashcard.exampleSentence}'),
-//                 ],
-//               ),
-//               onTap: () {
-//                 Navigator.push(
-//                   context,
-//                   MaterialPageRoute(
-//                     builder: (context) => FlashcardScreen(flashcard: flashcard),
-//                   ),
-//                 );
-//               },
-//               trailing: IconButton(
-//                 icon: Icon(Icons.volume_up),
-//                 onPressed: () {
-//                   // _playSpeech(context, flashcard.word); // Pass context to the _playSpeech method
-//                   _playSpeech(context, flashcard); // Pass the entire flashcard object
-//                 },
-//               ),
-//             ),
-//           );
-//         },
-//       ),
-//       floatingActionButton: FloatingActionButton(
-//         child: Icon(Icons.add),
-//         onPressed: () {
-//           // Handle adding a new flashcard (if you need this functionality)
-//         },
-//       ),
-//     );
-//   }
-// }
-
-
-
-import 'package:flashcard_mvp/screens/reviewSessionScreen.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import '../models/flashcard.dart';
+import 'package:flashcard_mvp/models/flashcard.dart';
+import 'package:flashcard_mvp/services/tts_service.dart';
+import 'package:flashcard_mvp/screens/reviewSessionScreen.dart';
+import 'dart:async';
 
-class DeckScreen extends StatelessWidget {
+class DeckScreen extends StatefulWidget {
   final Deck deck;
 
   DeckScreen({required this.deck});
 
   @override
+  _DeckScreenState createState() => _DeckScreenState();
+}
+
+class _DeckScreenState extends State<DeckScreen> {
+  final TTSService _ttsService = TTSService(); // Initialize the TTSService
+  final AudioPlayer _audioPlayer = AudioPlayer(); // Maintain a single AudioPlayer instance
+  bool _isPlaying = false;
+
+  @override
+  void dispose() {
+    // Dispose of the audio player when the screen is disposed
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _playSpeech(String text) async {
+    if (_isPlaying) {
+      await _audioPlayer.stop(); // Stop any currently playing audio
+    }
+
+    setState(() {
+      _isPlaying = true;
+    });
+
+    final audioFilePath = await _ttsService.generateSpeech(text);
+
+    if (audioFilePath != null) {
+      try {
+        // Adding a slight delay to ensure the file is ready
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        await _audioPlayer.play(DeviceFileSource(audioFilePath));
+      } catch (e) {
+        print('An error occurred: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to play speech.')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to generate speech.')),
+      );
+    }
+
+    setState(() {
+      _isPlaying = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(deck.name)),
+      appBar: AppBar(title: Text(widget.deck.name)),
       body: ListView.builder(
-        itemCount: deck.flashcards.length,
+        itemCount: widget.deck.flashcards.length,
         itemBuilder: (context, index) {
-          final flashcard = deck.flashcards[index];
+          final flashcard = widget.deck.flashcards[index];
           return ListTile(
             title: Text(flashcard.word),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ReviewSessionScreen(flashcards: deck.flashcards),
-                ),
-              );
-            },
+            subtitle: Text('Definition: ${flashcard.definition}'),
+            trailing: IconButton(
+              icon: Icon(Icons.volume_up),
+              onPressed: () {
+                _playSpeech(
+                  '${flashcard.word}. Definition: ${flashcard.definition}. Example: ${flashcard.exampleSentence}',
+                );
+              },
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: Icon(Icons.play_arrow),
+        label: Text('Start Review'),
+        onPressed: () async {
+          // Stop the audio if it's playing when the user clicks "Start Review"
+          if (_isPlaying) {
+            await _audioPlayer.stop();
+          }
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ReviewSessionScreen(deck: widget.deck),
+            ),
           );
         },
       ),

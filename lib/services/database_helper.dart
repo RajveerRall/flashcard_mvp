@@ -1,78 +1,10 @@
-// import 'package:sqflite/sqflite.dart';
-// import 'package:path/path.dart';
-// import '../models/flashcard.dart';
-//
-// class DatabaseHelper {
-//   static final DatabaseHelper _instance = DatabaseHelper._internal();
-//
-//   factory DatabaseHelper() {
-//     return _instance;
-//   }
-//
-//   DatabaseHelper._internal();
-//
-//   static Database? _database;
-//
-//   Future<Database> get database async {
-//     if (_database != null) return _database!;
-//     _database = await _initDatabase();
-//     return _database!;
-//   }
-//
-//   // Future<Database> _initDatabase() async {
-//   //   String path = join(await getDatabasesPath(), 'flashcards.db');
-//   //   return await openDatabase(
-//   //     path,
-//   //     version: 1,
-//   //     onCreate: (db, version) {
-//   //       return db.execute(
-//   //         'CREATE TABLE flashcards(id INTEGER PRIMARY KEY, word TEXT, definition TEXT, exampleSentence TEXT)',
-//   //       );
-//   //     },
-//   //   );
-//   // }
-//
-//   Future<Database> _initDatabase() async {
-//     String path = join(await getDatabasesPath(), 'flashcards.db');
-//     return await openDatabase(
-//       path,
-//       version: 1,
-//       onCreate: (db, version) {
-//         // Create the decks table
-//         db.execute(
-//           'CREATE TABLE decks(id INTEGER PRIMARY KEY, name TEXT)',
-//         );
-//
-//         // Create the flashcards table with a foreign key to the decks table
-//         return db.execute(
-//           'CREATE TABLE flashcards(id INTEGER PRIMARY KEY, word TEXT, definition TEXT, exampleSentence TEXT, deck_id INTEGER, FOREIGN KEY(deck_id) REFERENCES decks(id) ON DELETE CASCADE)',
-//         );
-//       },
-//     );
-//   }
-//
-//
-//
-//   Future<void> insertFlashcard(Flashcard flashcard) async {
-//     final db = await database;
-//     await db.insert('flashcards', flashcard.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
-//   }
-//
-//   Future<List<Flashcard>> getFlashcards() async {
-//     final db = await database;
-//     final List<Map<String, dynamic>> maps = await db.query('flashcards');
-//     return List.generate(maps.length, (i) {
-//       return Flashcard.fromMap(maps[i]);
-//     });
-//   }
-// }
-
-
-import '../models/flashcard.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:flashcard_mvp/models/flashcard.dart';
 import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
 
 class DatabaseHelper {
+  // Singleton pattern for DatabaseHelper
   static final DatabaseHelper _instance = DatabaseHelper._internal();
 
   factory DatabaseHelper() {
@@ -93,88 +25,77 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'flashcards.db');
     return await openDatabase(
       path,
-      version: 3, // Ensure the version number is correct
-      onCreate: (db, version) async {
-        // Create the decks table
-        await db.execute(
+      version: 3, // Increment the version if you add new columns like imageUrl
+      onCreate: (db, version) {
+        db.execute(
           'CREATE TABLE decks(id INTEGER PRIMARY KEY, name TEXT)',
         );
-        // Create the flashcards table
-        await db.execute(
-          'CREATE TABLE flashcards(id INTEGER PRIMARY KEY, word TEXT, definition TEXT, exampleSentence TEXT, intervalDays INTEGER, dueDate TEXT, easeFactor REAL, repetitions INTEGER, deck_id INTEGER, FOREIGN KEY(deck_id) REFERENCES decks(id) ON DELETE CASCADE)',
+
+        return db.execute(
+          'CREATE TABLE flashcards('
+              'id INTEGER PRIMARY KEY, '
+              'word TEXT, '
+              'definition TEXT, '
+              'exampleSentence TEXT, '
+              'intervalDays INTEGER, '
+              'dueDate TEXT, '
+              'easeFactor REAL, '
+              'repetitions INTEGER, '
+              'imageUrl TEXT, ' // Add imageUrl field
+              'deck_id INTEGER, '
+              'FOREIGN KEY(deck_id) REFERENCES decks(id) ON DELETE CASCADE)',
         );
       },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute('ALTER TABLE flashcards ADD COLUMN intervalDays INTEGER DEFAULT 1');
-          await db.execute('ALTER TABLE flashcards ADD COLUMN dueDate TEXT');
-        }
+      onUpgrade: (db, oldVersion, newVersion) {
         if (oldVersion < 3) {
-          await db.execute('ALTER TABLE flashcards ADD COLUMN easeFactor REAL DEFAULT 2.5');
-          await db.execute('ALTER TABLE flashcards ADD COLUMN repetitions INTEGER DEFAULT 0');
-        }
-        if (oldVersion < 4) {
-          // If the decks table was missing, create it during the upgrade
-          await db.execute(
-            'CREATE TABLE IF NOT EXISTS decks(id INTEGER PRIMARY KEY, name TEXT)',
-          );
+          db.execute('ALTER TABLE flashcards ADD COLUMN imageUrl TEXT');
         }
       },
     );
   }
 
-
-
-  Future<int> updateFlashcard(Flashcard flashcard) async {
+  // Method to insert flashcards in a batch
+  Future<void> insertFlashcards(List<Flashcard> flashcards, int deckId) async {
     final db = await database;
-    return await db.update(
-      'flashcards',
-      flashcard.toMap(),
-      where: 'id = ?',
-      whereArgs: [flashcard.id],
-    );
+    final batch = db.batch();
+    for (var flashcard in flashcards) {
+      batch.insert(
+        'flashcards',
+        flashcard.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+
+    await batch.commit(noResult: true);
   }
 
-
-
+  // Deck-related methods
   Future<int> insertDeck(Deck deck) async {
     final db = await database;
-    return await db.insert('decks', deck.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
-  }
-
-  Future<void> insertFlashcardWithDeck(Flashcard flashcard, int deckId) async {
-    final db = await database;
-    await db.insert(
-      'flashcards',
-      {
-        'word': flashcard.word,
-        'definition': flashcard.definition,
-        'exampleSentence': flashcard.exampleSentence,
-        'intervalDays': flashcard.intervalDays,
-        'dueDate': flashcard.dueDate.toIso8601String(),
-        'deck_id': deckId,
-      },
+    // Insert and return the auto-generated ID
+    return await db.insert(
+      'decks',
+      deck.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
-  Future<void> insertFlashcard(Flashcard flashcard) async {
-    final db = await database;
-    await db.insert('flashcards', flashcard.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
-  }
 
-  Future<List<Flashcard>> getDueFlashcards() async {
+  Future<Deck?> getDeckById(int id) async {
     final db = await database;
-    final now = DateTime.now().toIso8601String();
-    final List<Map<String, dynamic>> maps = await db.query(
-      'flashcards',
-      where: 'dueDate <= ?',
-      whereArgs: [now],
+    final List<Map<String, dynamic>> deckMaps = await db.query(
+      'decks',
+      where: 'id = ?',
+      whereArgs: [id],
     );
 
-    return List.generate(maps.length, (i) {
-      return Flashcard.fromMap(maps[i]);
-    });
+    if (deckMaps.isNotEmpty) {
+      final deckMap = deckMaps.first;
+      final List<Flashcard> flashcards = await getFlashcardsByDeckId(deckMap['id']);
+      return Deck.fromMap(deckMap, flashcards);
+    } else {
+      return null;
+    }
   }
 
   Future<Deck?> getDeckByName(String name) async {
@@ -194,25 +115,55 @@ class DatabaseHelper {
     }
   }
 
-  Future<Deck?> getDeckById(int id) async {
+  Future<List<Deck>> getAllDecks() async {
     final db = await database;
-    final List<Map<String, dynamic>> deckMaps = await db.query(
-      'decks',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    final List<Map<String, dynamic>> deckMaps = await db.query('decks');
 
-    if (deckMaps.isNotEmpty) {
-      final deckMap = deckMaps.first;
-      final List<Flashcard> flashcards = await getFlashcardsByDeckId(deckMap['id']);
-      return Deck.fromMap(deckMap, flashcards); // Pass both deckMap and flashcards
-    } else {
-      return null;
+    List<Deck> decks = [];
+    for (var deckMap in deckMaps) {
+      final flashcards = await getFlashcardsByDeckId(deckMap['id']);
+      decks.add(Deck.fromMap(deckMap, flashcards));
     }
+    return decks;
   }
 
+  // Flashcard-related methods
+  Future<void> insertFlashcard(Flashcard flashcard) async {
+    final db = await database;
+    await db.insert('flashcards', flashcard.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+  }
 
+  Future<void> insertFlashcardWithDeck(Flashcard flashcard, int deckId) async {
+    final db = await database;
+    await db.insert(
+      'flashcards',
+      {
+        'word': flashcard.word,
+        'definition': flashcard.definition,
+        'exampleSentence': flashcard.exampleSentence,
+        'intervalDays': flashcard.intervalDays,
+        'dueDate': flashcard.dueDate.toIso8601String(),
+        'easeFactor': flashcard.easeFactor,
+        'repetitions': flashcard.repetitions,
+        'deck_id': deckId,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
 
+  Future<List<Flashcard>> getDueFlashcards() async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    final List<Map<String, dynamic>> maps = await db.query(
+      'flashcards',
+      where: 'dueDate <= ?',
+      whereArgs: [now],
+    );
+
+    return List.generate(maps.length, (i) {
+      return Flashcard.fromMap(maps[i]);
+    });
+  }
 
   Future<List<Flashcard>> getFlashcardsByDeckId(int deckId) async {
     final db = await database;
@@ -226,16 +177,23 @@ class DatabaseHelper {
     });
   }
 
-  Future<List<Deck>> getAllDecks() async {
+  Future<void> updateFlashcard(Flashcard flashcard) async {
     final db = await database;
-    final List<Map<String, dynamic>> deckMaps = await db.query('decks');
+    await db.update(
+      'flashcards',
+      flashcard.toMap(),
+      where: 'id = ?',
+      whereArgs: [flashcard.id],
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
 
-    List<Deck> decks = [];
-    for (var deckMap in deckMaps) {
-      final flashcards = await getFlashcardsByDeckId(deckMap['id']);
-      decks.add(Deck.fromMap(deckMap, flashcards));
-    }
-    return decks;
+  Future<void> deleteDeck(int deckId) async {
+    final db = await database;
+    await db.delete(
+      'decks',
+      where: 'id = ?',
+      whereArgs: [deckId],
+    );
   }
 }
-
