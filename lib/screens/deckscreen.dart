@@ -1,6 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flashcard_mvp/models/flashcard.dart';
+import 'package:flashcard_mvp/services/flashcard_manager.dart';
 import 'package:flashcard_mvp/services/tts_service.dart';
 import 'package:flashcard_mvp/screens/reviewSessionScreen.dart';
 import 'dart:async';
@@ -15,20 +16,20 @@ class DeckScreen extends StatefulWidget {
 }
 
 class _DeckScreenState extends State<DeckScreen> {
-  final TTSService _ttsService = TTSService(); // Initialize the TTSService
-  final AudioPlayer _audioPlayer = AudioPlayer(); // Maintain a single AudioPlayer instance
+  final TTSService _ttsService = TTSService();
+  final FlashcardManager _flashcardManager = FlashcardManager(); // Initialize FlashcardManager
+  final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
 
   @override
   void dispose() {
-    // Dispose of the audio player when the screen is disposed
     _audioPlayer.dispose();
     super.dispose();
   }
 
   Future<void> _playSpeech(String text) async {
     if (_isPlaying) {
-      await _audioPlayer.stop(); // Stop any currently playing audio
+      await _audioPlayer.stop();
     }
 
     setState(() {
@@ -39,9 +40,7 @@ class _DeckScreenState extends State<DeckScreen> {
 
     if (audioFilePath != null) {
       try {
-        // Adding a slight delay to ensure the file is ready
         await Future.delayed(const Duration(milliseconds: 500));
-
         await _audioPlayer.play(DeviceFileSource(audioFilePath));
       } catch (e) {
         print('An error occurred: $e');
@@ -58,6 +57,23 @@ class _DeckScreenState extends State<DeckScreen> {
     setState(() {
       _isPlaying = false;
     });
+  }
+
+  void _startReview() async {
+    final dueFlashcards = await _flashcardManager.getDueFlashcards(widget.deck.id!);
+
+    if (dueFlashcards.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No flashcards are due for review today.')),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReviewSessionScreen(deck: widget.deck, flashcards: dueFlashcards),
+        ),
+      );
+    }
   }
 
   @override
@@ -86,17 +102,10 @@ class _DeckScreenState extends State<DeckScreen> {
         icon: Icon(Icons.play_arrow),
         label: Text('Start Review'),
         onPressed: () async {
-          // Stop the audio if it's playing when the user clicks "Start Review"
           if (_isPlaying) {
             await _audioPlayer.stop();
           }
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ReviewSessionScreen(deck: widget.deck),
-            ),
-          );
+          _startReview();
         },
       ),
     );

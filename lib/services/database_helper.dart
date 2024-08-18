@@ -151,19 +151,19 @@ class DatabaseHelper {
     );
   }
 
-  Future<List<Flashcard>> getDueFlashcards() async {
+  Future<List<Flashcard>> getDueFlashcards(int deckId, DateTime now) async {
     final db = await database;
-    final now = DateTime.now().toIso8601String();
     final List<Map<String, dynamic>> maps = await db.query(
       'flashcards',
-      where: 'dueDate <= ?',
-      whereArgs: [now],
+      where: 'deck_id = ? AND dueDate <= ?',
+      whereArgs: [deckId, now.toIso8601String()],
     );
 
     return List.generate(maps.length, (i) {
       return Flashcard.fromMap(maps[i]);
     });
   }
+
 
   Future<List<Flashcard>> getFlashcardsByDeckId(int deckId) async {
     final db = await database;

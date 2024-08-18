@@ -1,17 +1,12 @@
 import 'package:flashcard_mvp/models/flashcard.dart';
 import 'package:flashcard_mvp/services/llm_service.dart';
-import 'package:flashcard_mvp/services/database_helper.dart'; // Assuming this is where your DB helper is
-import 'package:flashcard_mvp/services/image_service.dart'; // Import the ImageService for generating images
-
-import 'package:flashcard_mvp/models/flashcard.dart';
-import 'package:flashcard_mvp/services/llm_service.dart';
 import 'package:flashcard_mvp/services/database_helper.dart';
-import 'package:flashcard_mvp/services/image_service.dart'; // Import the ImageService
+import 'package:flashcard_mvp/services/image_service.dart';
 
 class FlashcardManager {
   final LLMService _llmService = LLMService();
   final DatabaseHelper _databaseHelper = DatabaseHelper();
-  final ImageService _imageService = ImageService(); // Initialize the ImageService
+  final ImageService _imageService = ImageService();
 
   // Method to generate a deck of flashcards based on user input
   Future<Deck?> generateDeck(String input) async {
@@ -24,7 +19,7 @@ class FlashcardManager {
         return existingDeck;
       }
 
-      // Parallelize flashcard generation and image generation
+      // Generate flashcards using LLM service
       final List<Flashcard> flashcards = await _llmService.suggestWords(input);
 
       if (flashcards.isEmpty) {
@@ -34,8 +29,9 @@ class FlashcardManager {
 
       // Parallel image generation
       await Future.wait(flashcards.map((flashcard) async {
+        flashcard.dueDate = DateTime.now(); // Set dueDate to current date and time
         flashcard.imageUrl = await _imageService.generateImage(
-          flashcard.word, flashcard.definition
+            flashcard.word, flashcard.definition
         );
       }));
 
@@ -47,7 +43,7 @@ class FlashcardManager {
 
       // Save the new deck and its flashcards to the database
       int deckId = await _databaseHelper.insertDeck(newDeck);
-      await _databaseHelper.insertFlashcards(flashcards, deckId); // Use batch insert
+      await _databaseHelper.insertFlashcards(flashcards, deckId); // Batch insert flashcards
 
       return newDeck;
 
@@ -55,5 +51,47 @@ class FlashcardManager {
       print('Failed to generate deck: $e');
       return null;
     }
+  }
+
+  // Method to retrieve flashcards that are due for review for a specific deck
+  Future<List<Flashcard>> getDueFlashcards(int deckId) async {
+    final now = DateTime.now(); // Keep it as a DateTime object
+    final List<Flashcard> dueFlashcards = await _databaseHelper.getDueFlashcards(deckId, now); // Pass the deckId and now as DateTime
+    return dueFlashcards;
+  }
+
+  // Method to update flashcard status after review
+  Future<void> updateFlashcardAfterReview(Flashcard flashcard, String rating) async {
+    int repetitions = flashcard.repetitions;
+    double easeFactor = flashcard.easeFactor;
+    int intervalDays = flashcard.intervalDays;
+
+    if (rating == 'Easy') {
+      repetitions += 1;
+      easeFactor += 0.1;
+      intervalDays = (intervalDays * easeFactor).round();
+    } else if (rating == 'Medium') {
+      repetitions += 1;
+      intervalDays = (intervalDays * easeFactor).round();
+    } else if (rating == 'Hard') {
+      easeFactor = (easeFactor - 0.2).clamp(1.3, 2.5);
+      intervalDays = 1;
+    }
+
+    final newDueDate = DateTime.now().add(Duration(days: intervalDays));
+
+    final updatedFlashcard = Flashcard(
+      id: flashcard.id,
+      word: flashcard.word ?? '',
+      definition: flashcard.definition ?? '',
+      exampleSentence: flashcard.exampleSentence ?? '',
+      intervalDays: intervalDays,
+      easeFactor: easeFactor,
+      repetitions: repetitions,
+      dueDate: newDueDate,
+      imageUrl: flashcard.imageUrl,
+    );
+
+    await _databaseHelper.updateFlashcard(updatedFlashcard);
   }
 }

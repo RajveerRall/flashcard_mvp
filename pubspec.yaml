@@ -38,6 +38,7 @@ dependencies:
   audioplayers: ^6.0.0
   flutter_dotenv: ^5.1.0
   just_audio: ^0.9.18
+  spaced_repetition: ^0.1.0
 
 
 

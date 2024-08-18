@@ -52,7 +52,7 @@ class _FlashcardDeckGeneratorState extends State<FlashcardDeckGenerator> {
 
     if (generatedFlashcards != null && generatedFlashcards.flashcards.isNotEmpty) {
       // Create a new Deck without specifying the ID (it will be set by the database)
-      final newDeck = Deck(id: 0, name: word, flashcards: generatedFlashcards.flashcards);
+      final newDeck = Deck(name: word, flashcards: generatedFlashcards.flashcards);
 
       // Save the new deck and get the auto-generated ID from the database
       final deckId = await _databaseHelper.insertDeck(newDeck);

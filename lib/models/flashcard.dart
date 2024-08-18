@@ -7,7 +7,7 @@ class Flashcard {
   DateTime dueDate;
   double easeFactor;
   int repetitions;
-  String? imageUrl; // New field to store the image URL
+  String? imageUrl;
 
   Flashcard({
     this.id,
@@ -18,7 +18,7 @@ class Flashcard {
     DateTime? dueDate,
     this.easeFactor = 2.5,
     this.repetitions = 0,
-    this.imageUrl, // Initialize the new field
+    this.imageUrl,
   }) : dueDate = dueDate ?? DateTime.now().add(Duration(days: 1));
 
   Map<String, dynamic> toMap() {
@@ -31,7 +31,7 @@ class Flashcard {
       'dueDate': dueDate.toIso8601String(),
       'easeFactor': easeFactor,
       'repetitions': repetitions,
-      'imageUrl': imageUrl, // Include imageUrl in the map
+      'imageUrl': imageUrl,
     };
   }
 
@@ -44,8 +44,9 @@ class Flashcard {
         dueDate = DateTime.parse(map['dueDate'] ?? DateTime.now().toIso8601String()),
         easeFactor = map['easeFactor'] ?? 2.5,
         repetitions = map['repetitions'] ?? 0,
-        imageUrl = map['imageUrl']; // Extract imageUrl from the map
+        imageUrl = map['imageUrl'];
 }
+
 
 
 class Deck {
