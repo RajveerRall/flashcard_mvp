@@ -5,40 +5,45 @@ class Flashcard {
   String exampleSentence;
   int intervalDays;
   DateTime dueDate;
-  int repetitions; // Number of times the flashcard has been reviewed
+  double easeFactor;
+  int repetitions;
 
   Flashcard({
-    this.id,
+    this.id,  // Ensure id is included
     required this.word,
     required this.definition,
     required this.exampleSentence,
-    this.intervalDays = 1, // Default interval is 1 day
-    DateTime? dueDate,     // Default due date is today
-    this.repetitions = 0,  // Initialize repetitions to 0
+    this.intervalDays = 1,
+    DateTime? dueDate,
+    this.easeFactor = 2.5,
+    this.repetitions = 0,
   }) : dueDate = dueDate ?? DateTime.now().add(Duration(days: 1));
 
-  // Convert a Flashcard into a Map.
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'word': word,
       'definition': definition,
       'exampleSentence': exampleSentence,
       'intervalDays': intervalDays,
       'dueDate': dueDate.toIso8601String(),
+      'easeFactor': easeFactor,
       'repetitions': repetitions,
     };
   }
 
-  // Convert a Map into a Flashcard.
   Flashcard.fromMap(Map<String, dynamic> map)
       : id = map['id'],
         word = map['word'],
         definition = map['definition'],
         exampleSentence = map['exampleSentence'],
-        intervalDays = map['intervalDays'] ?? 1, // Default to 1 if not present
+        intervalDays = map['intervalDays'] ?? 1,
         dueDate = DateTime.parse(map['dueDate'] ?? DateTime.now().toIso8601String()),
-        repetitions = map['repetitions'] ?? 0; // Default to 0 if not present
+        easeFactor = map['easeFactor'] ?? 2.5,
+        repetitions = map['repetitions'] ?? 0;
 }
+
+
 
 
 

@@ -538,6 +538,7 @@ class LLMService {
         final flashcardData = parsedContent['flashcards'][0];
 
         return Flashcard(
+
           word: flashcardData['word'],
           definition: flashcardData['definition'],
           exampleSentence: flashcardData['example_sentence'],
@@ -616,6 +617,7 @@ class LLMService {
         if (flashcardsJson != null) {
           final List<Flashcard> flashcards = flashcardsJson.map<Flashcard>((flashcardJson) {
             return Flashcard(
+
               word: flashcardJson['word'],
               definition: flashcardJson['definition'],
               exampleSentence: flashcardJson['example_sentence'],

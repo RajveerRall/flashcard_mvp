@@ -73,7 +73,6 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
 class DatabaseHelper {
-  // Singleton pattern for DatabaseHelper
   static final DatabaseHelper _instance = DatabaseHelper._internal();
 
   factory DatabaseHelper() {
@@ -94,23 +93,48 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'flashcards.db');
     return await openDatabase(
       path,
-      version: 3, // Increment the version when you change the schema
-      onCreate: (db, version) {
-        return db.execute(
-          'CREATE TABLE flashcards(id INTEGER PRIMARY KEY, word TEXT, definition TEXT, exampleSentence TEXT, intervalDays INTEGER, dueDate TEXT, repetitions INTEGER)',
+      version: 3, // Ensure the version number is correct
+      onCreate: (db, version) async {
+        // Create the decks table
+        await db.execute(
+          'CREATE TABLE decks(id INTEGER PRIMARY KEY, name TEXT)',
+        );
+        // Create the flashcards table
+        await db.execute(
+          'CREATE TABLE flashcards(id INTEGER PRIMARY KEY, word TEXT, definition TEXT, exampleSentence TEXT, intervalDays INTEGER, dueDate TEXT, easeFactor REAL, repetitions INTEGER, deck_id INTEGER, FOREIGN KEY(deck_id) REFERENCES decks(id) ON DELETE CASCADE)',
         );
       },
-      onUpgrade: (db, oldVersion, newVersion) {
+      onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          db.execute('ALTER TABLE flashcards ADD COLUMN intervalDays INTEGER DEFAULT 1');
-          db.execute('ALTER TABLE flashcards ADD COLUMN dueDate TEXT');
+          await db.execute('ALTER TABLE flashcards ADD COLUMN intervalDays INTEGER DEFAULT 1');
+          await db.execute('ALTER TABLE flashcards ADD COLUMN dueDate TEXT');
         }
         if (oldVersion < 3) {
-          db.execute('ALTER TABLE flashcards ADD COLUMN repetitions INTEGER DEFAULT 0');
+          await db.execute('ALTER TABLE flashcards ADD COLUMN easeFactor REAL DEFAULT 2.5');
+          await db.execute('ALTER TABLE flashcards ADD COLUMN repetitions INTEGER DEFAULT 0');
+        }
+        if (oldVersion < 4) {
+          // If the decks table was missing, create it during the upgrade
+          await db.execute(
+            'CREATE TABLE IF NOT EXISTS decks(id INTEGER PRIMARY KEY, name TEXT)',
+          );
         }
       },
     );
   }
+
+
+
+  Future<int> updateFlashcard(Flashcard flashcard) async {
+    final db = await database;
+    return await db.update(
+      'flashcards',
+      flashcard.toMap(),
+      where: 'id = ?',
+      whereArgs: [flashcard.id],
+    );
+  }
+
 
 
   Future<int> insertDeck(Deck deck) async {
@@ -137,16 +161,6 @@ class DatabaseHelper {
   Future<void> insertFlashcard(Flashcard flashcard) async {
     final db = await database;
     await db.insert('flashcards', flashcard.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
-  }
-
-  Future<void> updateFlashcard(Flashcard flashcard) async {
-    final db = await database;
-    await db.update(
-      'flashcards',
-      flashcard.toMap(),
-      where: 'id = ?',
-      whereArgs: [flashcard.id],
-    );
   }
 
   Future<List<Flashcard>> getDueFlashcards() async {
@@ -196,6 +210,9 @@ class DatabaseHelper {
       return null;
     }
   }
+
+
+
 
   Future<List<Flashcard>> getFlashcardsByDeckId(int deckId) async {
     final db = await database;

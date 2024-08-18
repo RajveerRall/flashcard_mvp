@@ -478,6 +478,7 @@ class _FlashcardDeckGeneratorState extends State<FlashcardDeckGenerator> {
     final dueFlashcards = await _databaseHelper.getDueFlashcards();
 
     if (dueFlashcards.isNotEmpty) {
+
       Navigator.push(
         context,
         MaterialPageRoute(
