@@ -8,13 +8,57 @@ class FlashcardManager {
   final DatabaseHelper _databaseHelper = DatabaseHelper();
   final ImageService _imageService = ImageService();
 
-  // Method to generate a deck of flashcards based on user input
+  // // Method to generate a deck of flashcards based on user input
+  // Future<Deck?> generateDeck(String input) async {
+  //   try {
+  //     // Check if a deck with this name already exists
+  //     Deck? existingDeck = await _databaseHelper.getDeckByName(input);
+  //
+  //     if (existingDeck != null) {
+  //       print('Deck with name "$input" already exists. Returning existing deck.');
+  //       return existingDeck;
+  //     }
+  //
+  //     // Generate flashcards using LLM service
+  //     final List<Flashcard> flashcards = await _llmService.suggestWords(input);
+  //
+  //     if (flashcards.isEmpty) {
+  //       print('No flashcards were generated');
+  //       return null;
+  //     }
+  //
+  //     // Parallel image generation
+  //     await Future.wait(flashcards.map((flashcard) async {
+  //       flashcard.dueDate = DateTime.now(); // Set dueDate to current date and time
+  //       flashcard.imageUrl = await _imageService.generateImage(
+  //           flashcard.word, flashcard.definition
+  //       );
+  //     }));
+  //
+  //     // Create a deck with the generated flashcards
+  //     Deck newDeck = Deck(
+  //       name: input,
+  //       flashcards: flashcards,
+  //     );
+  //
+  //     // Save the new deck and its flashcards to the database
+  //     int deckId = await _databaseHelper.insertDeck(newDeck);
+  //     await _databaseHelper.insertFlashcards(flashcards, deckId); // Batch insert flashcards
+  //
+  //     return newDeck;
+  //
+  //   } catch (e) {
+  //     print('Failed to generate deck: $e');
+  //     return null;
+  //   }
+  // }
+
   Future<Deck?> generateDeck(String input) async {
     try {
       // Check if a deck with this name already exists
       Deck? existingDeck = await _databaseHelper.getDeckByName(input);
 
-      if (existingDeck != null) {
+      if (existingDeck != null && existingDeck.flashcards.isNotEmpty) {
         print('Deck with name "$input" already exists. Returning existing deck.');
         return existingDeck;
       }
@@ -27,31 +71,36 @@ class FlashcardManager {
         return null;
       }
 
-      // Parallel image generation
-      await Future.wait(flashcards.map((flashcard) async {
+      // Parallel image generation with error handling
+      await Future.forEach(flashcards, (Flashcard flashcard) async {
         flashcard.dueDate = DateTime.now(); // Set dueDate to current date and time
+        await Future.delayed(Duration(milliseconds: 100)); // Add a small delay
         flashcard.imageUrl = await _imageService.generateImage(
             flashcard.word, flashcard.definition
         );
-      }));
+      });
 
-      // Create a deck with the generated flashcards
-      Deck newDeck = Deck(
-        name: input,
-        flashcards: flashcards,
-      );
+      // Create and save the deck only if flashcards were generated successfully
+      if (flashcards.isNotEmpty) {
+        Deck newDeck = Deck(
+          name: input,
+          flashcards: flashcards,
+        );
 
-      // Save the new deck and its flashcards to the database
-      int deckId = await _databaseHelper.insertDeck(newDeck);
-      await _databaseHelper.insertFlashcards(flashcards, deckId); // Batch insert flashcards
+        int deckId = await _databaseHelper.insertDeck(newDeck);
+        await _databaseHelper.insertFlashcards(flashcards, deckId);
 
-      return newDeck;
-
+        return newDeck;
+      } else {
+        print('No valid flashcards to save, skipping deck creation.');
+        return null;
+      }
     } catch (e) {
       print('Failed to generate deck: $e');
       return null;
     }
   }
+
 
   // Method to retrieve flashcards that are due for review for a specific deck
   Future<List<Flashcard>> getDueFlashcards(int deckId) async {
